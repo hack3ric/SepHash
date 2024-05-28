@@ -16,12 +16,12 @@
 #include "split_search_fptable_wocache.h"
 #include <set>
 #include <stdint.h>
-#define ORDERED_INSERT
+// #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
-using ClientType = SEPHASH::Client;
-using ServerType = SEPHASH::Server;
-using Slice = SEPHASH::Slice;
+using ClientType = RACE::Client;
+using ServerType = RACE::Server;
+using Slice = RACE::Slice;
 
 inline uint64_t GenKey(uint64_t key)
 {
@@ -39,7 +39,7 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
     co_await cli->start(config.num_machine * config.num_cli * config.num_coro);
     uint64_t tmp_key;
     Slice key, value;
-    std::string tmp_value = std::string(32, '1');
+    std::string tmp_value = std::string(8, '1');
     value.len = tmp_value.length();
     value.data = (char *)tmp_value.data();
     key.len = sizeof(uint64_t);
@@ -66,11 +66,11 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
 
     ret_value.data = buffer;
 
-    std::string tmp_value = std::string(32, '1');
+    std::string tmp_value = std::string(8, '1');
     value.len = tmp_value.length();
     value.data = (char *)tmp_value.data();
 
-    std::string tmp_value_2 = std::string(32, '2');
+    std::string tmp_value_2 = std::string(8, '2');
     update_value.len = tmp_value_2.length();
     update_value.data = (char *)tmp_value_2.data();
 
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        uint64_t cbuf_size = (1ul << 20) * 250;
+        uint64_t cbuf_size = (1ul << 20) * 60;
         char *mem_buf = (char *)malloc(cbuf_size * (config.num_cli * config.num_coro + 1));
         // rdma_dev dev("mlx5_1", 1, config.gid_idx);
         rdma_dev dev("mlx5_0", 1, config.gid_idx);

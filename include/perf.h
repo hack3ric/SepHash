@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-// #define USE_PERF
+#define USE_PERF
 // #define USE_SUM_COST
 
 struct Perf
@@ -55,12 +55,15 @@ struct Perf
 #ifdef USE_PERF
         std::ofstream file(file_name, std::ios::out); // 创建文件输出流，指定打开模式为覆盖写入
         if (file.is_open()) {
+            std::sort(lat.begin(), lat.end());
+            // std::cout << "P50 latency: " << lat[lat.size() * 0.5] << std::endl;
+            // std::cout << "P99.9 latency: " << lat[lat.size() * 0.999] << std::endl;
             // 将时延数据写入文件
             for (const auto& latency : lat) {
                 file << latency << "\n"; // 每个时延一行
             }
             file.close(); // 关闭文件
-            std::cout << "Data exported to file: " <<file_name<< std::endl;
+            // std::cout << "Data exported to file: " <<file_name<< std::endl;
         } else {
             std::cout << "Failed to open the output file." << std::endl;
         }

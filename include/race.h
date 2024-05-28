@@ -20,7 +20,7 @@ namespace RACE
 
 // size of race segment = 8*8*(1<<6)*3 = 12KB
 constexpr uint64_t SLOT_PER_BUCKET = 8;
-constexpr uint64_t BUCKET_BITS = 6;
+constexpr uint64_t BUCKET_BITS = 12;
 constexpr uint64_t BUCKET_PER_SEGMENT = 1 << (BUCKET_BITS);
 constexpr uint64_t INIT_DEPTH = 4;
 constexpr uint64_t MAX_DEPTH = 20;

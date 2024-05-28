@@ -102,7 +102,7 @@ Client::Client(Config &config, ibv_mr *_lmr, rdma_client *_cli, rdma_conn *_conn
     // alloc info
     alloc.Set((char *)lmr->addr, lmr->length);
     seg_rmr = cli->run(conn->query_remote_mr(233));
-    uint64_t rbuf_size = (seg_rmr.rlen - (1ul << 20) * 200) /
+    uint64_t rbuf_size = (seg_rmr.rlen - (1ul << 20) * 20) /
                             (config.num_machine * config.num_cli * config.num_coro); // 头部保留5GB，其他的留给client
     uint64_t buf_id = config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id;
     uintptr_t remote_ptr = seg_rmr.raddr + seg_rmr.rlen - rbuf_size * buf_id; // 从尾部开始分配
