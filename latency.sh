@@ -36,3 +36,5 @@ done
 
 # 对输出文件进行排序
 sort -n "$output_file" -o "$output_file"
+
+python3 data_latency.py
