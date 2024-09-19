@@ -40,20 +40,21 @@ void print_bit_map(uint64_t* fp_bitmap){
 Server::Server(Config &config) : dev(nullptr, 1, config.gid_idx), ser(dev)
 {
     seg_mr = dev.reg_mr(233, config.mem_size);
-    auto [dm, mr] = dev.reg_dmmr(234, dev_mem_size);
-    lock_dm = dm;
-    lock_mr = mr;
+    // auto [dm, mr] = dev.reg_dmmr(234, dev_mem_size);
+    // lock_dm = dm;
+    // lock_mr = mr;
 
     alloc.Set((char *)seg_mr->addr, seg_mr->length);
     dir = (Directory *)alloc.alloc(sizeof(Directory));
     memset(dir, 0, sizeof(Directory));
     Init();
     log_err("init");
+    // printf("%p %p\n", dm, mr);
 
     // Init locks
-    char tmp[dev_mem_size] = {}; // init locks to zero
-    lock_dm->memcpy_to_dm(lock_dm, 0, tmp, dev_mem_size);
-    log_err("memset");
+    // char tmp[dev_mem_size] = {}; // init locks to zero
+    // lock_dm->memcpy_to_dm(lock_dm, 0, tmp, dev_mem_size);
+    // log_err("memset");
 
     ser.start_serve();
 }
@@ -73,6 +74,8 @@ void Server::Init()
         memset(cur_seg, 0, sizeof(CurSeg));
         cur_seg->seg_meta.local_depth = INIT_DEPTH;
         cur_seg->seg_meta.sign = 1;
+        dir->segs[i].main_seg_ptr = (uintptr_t)alloc.alloc(sizeof(Slot) * (MAX_MAIN_SIZE + SLOT_PER_SEG));
+        cur_seg->seg_meta.main_seg_ptr = dir->segs[i].main_seg_ptr;
     }
 }
 
@@ -113,6 +116,9 @@ Client::Client(Config &config, ibv_mr *_lmr, rdma_client *_cli, rdma_conn *_conn
     // util variable
     op_cnt = 0;
     miss_cnt = 0;
+
+    cur_seg = (CurSeg *)alloc.alloc(sizeof(CurSeg));
+    new_main_seg = (MainSeg *)alloc.alloc(sizeof(Slot) * (MAX_MAIN_SIZE + SLOT_PER_SEG));
 
     // sync dir
     dir = (Directory *)alloc.alloc(sizeof(Directory));
@@ -435,37 +441,28 @@ Retry:
 void Client::merge_insert(Slot *data, uint64_t len, Slot *old_seg, uint64_t old_seg_len, Slot *new_seg)
 {
     std::sort(data, data + len);
-    uint8_t sign = data[0].sign;
-    int off_1 = 0, off_2 = 0;
-    for (uint64_t i = 0; i < len + old_seg_len; i++)
+    int off_1 = len - 1, off_2 = old_seg_len - 1;
+    for (int i = len + old_seg_len - 1; i >= 0; i--)
     {
-        if (data[off_1].sign != sign)
-        {
-            // log_err("[%lu:%lu:%lu]wrong sign",cli_id,coro_id,this->key_num);
-            // print_mainseg(data, len);
-            // exit(-1);
-        }
-        if (data[off_1].fp <= old_seg[off_2].fp)
+        if (off_1 >= 0 && data[off_1].fp >= old_seg[off_2].fp)
         {
             new_seg[i] = data[off_1];
-            off_1++;
+            off_1--;
         }
         else
         {
             new_seg[i] = old_seg[off_2];
-            off_2++;
+            off_2--;
         }
-        if (off_1 >= len || off_2 >= old_seg_len)
-            break;
     }
-    if (off_1 < len)
-    {
-        memcpy(new_seg + old_seg_len + off_1, data + off_1, (len - off_1) * sizeof(Slot));
-    }
-    else if (off_2 < old_seg_len)
-    {
-        memcpy(new_seg + len + off_2, old_seg + off_2, (old_seg_len - off_2) * sizeof(Slot));
-    }
+    // if (off_1 < len)
+    // {
+    //     memcpy(new_seg + old_seg_len + off_1, data + off_1, (len - off_1) * sizeof(Slot));
+    // }
+    // else if (off_2 < old_seg_len)
+    // {
+    //     memcpy(new_seg + len + off_2, old_seg + off_2, (old_seg_len - off_2) * sizeof(Slot));
+    // }
 }
 
 void print_mainseg(Slot *main_seg, uint64_t main_seg_len)
@@ -509,7 +506,7 @@ task<> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, CurSegMeta *old_seg_me
     uint64_t global_depth = dir->global_depth;
     uint64_t main_seg_ptr = old_seg_meta->main_seg_ptr;
     // 1. Read CurSeg
-    CurSeg *cur_seg = (CurSeg *)alloc.alloc(sizeof(CurSeg));
+    // CurSeg *cur_seg = (CurSeg *)alloc.alloc(sizeof(CurSeg));
     co_await conn->read(seg_ptr, seg_rmr.rkey, cur_seg, sizeof(CurSeg), lmr->lkey);
 
     // 因为只有cas写入最后一个slot的cli才会进入到对一个segment的split，所以不用对Segment额外加锁
@@ -522,13 +519,13 @@ task<> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, CurSegMeta *old_seg_me
 
     // 2. Read MainSeg
     uint64_t main_seg_size = sizeof(Slot) * dir->segs[seg_loc].main_seg_len;
-    MainSeg *main_seg = (MainSeg *)alloc.alloc(main_seg_size);
+    // MainSeg *main_seg = (MainSeg *)alloc.alloc(main_seg_size);
+    new_main_seg = (MainSeg *)alloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG);
     if(main_seg_size)
-        co_await conn->read(dir->segs[seg_loc].main_seg_ptr, seg_rmr.rkey, main_seg, main_seg_size, lmr->lkey);
+        co_await conn->read(dir->segs[seg_loc].main_seg_ptr, seg_rmr.rkey, new_main_seg, main_seg_size, lmr->lkey);
 
     // 3. Sort Segment
-    MainSeg *new_main_seg = (MainSeg *)alloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG);
-    merge_insert(cur_seg->slots, SLOT_PER_SEG, main_seg->slots, dir->segs[seg_loc].main_seg_len, new_main_seg->slots);
+    merge_insert(cur_seg->slots, SLOT_PER_SEG, new_main_seg->slots, dir->segs[seg_loc].main_seg_len, new_main_seg->slots);
     FpInfo fp_info[MAX_FP_INFO] = {};
     cal_fpinfo(new_main_seg->slots, SLOT_PER_SEG + dir->segs[seg_loc].main_seg_len, fp_info);
 
@@ -538,8 +535,8 @@ task<> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, CurSegMeta *old_seg_me
         // 因此Global Split不用处理DirEntry翻倍操作，只需要更新Global Depth
 
         // 4.1 Split Main Segment
-        MainSeg *new_seg_1 = (MainSeg *)alloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG);
-        MainSeg *new_seg_2 = (MainSeg *)alloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG);
+        MainSeg *new_seg_1 = (MainSeg *)alloc.alloc(sizeof(Slot) * (MAX_MAIN_SIZE + SLOT_PER_SEG));
+        MainSeg *new_seg_2 = (MainSeg *)alloc.alloc(sizeof(Slot) * (MAX_MAIN_SIZE + SLOT_PER_SEG));
         uint64_t dep_off = (local_depth) % 4;
         bool dep_bit = false;
         uint64_t pattern;
@@ -580,8 +577,8 @@ task<> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, CurSegMeta *old_seg_me
 
         // 4.2 Update new-main-ptr for DirEntries
         uintptr_t new_cur_ptr = ralloc.alloc(sizeof(CurSeg), true);
-        uintptr_t new_main_ptr1 = ralloc.alloc(sizeof(Slot) * off1);
-        uintptr_t new_main_ptr2 = ralloc.alloc(sizeof(Slot) * off2);
+        uintptr_t new_main_ptr1 = ralloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG);
+        uintptr_t new_main_ptr2 = ralloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG);
 
         // a. 同步远端global depth, 确认split类型
         co_await check_gd();
@@ -673,7 +670,8 @@ task<> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, CurSegMeta *old_seg_me
     // 5. Merge
     // 5.1 Write New MainSeg to Remote && Update CurSegMeta
     // a. write main segment
-    uintptr_t new_main_ptr = ralloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG, true);
+    // uintptr_t new_main_ptr = ralloc.alloc(main_seg_size + sizeof(Slot) * SLOT_PER_SEG, true);
+    uintptr_t new_main_ptr = cur_seg->seg_meta.main_seg_ptr;
     uint64_t new_main_len = dir->segs[seg_loc].main_seg_len + SLOT_PER_SEG;
     wo_wait_conn->pure_write(new_main_ptr, seg_rmr.rkey, new_main_seg->slots,
                                 sizeof(Slot) * new_main_len, lmr->lkey);

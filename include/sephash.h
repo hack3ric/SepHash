@@ -220,6 +220,9 @@ class Client : public BasicDB
 
     Alloc alloc;
     RAlloc ralloc;
+
+    CurSeg *cur_seg;
+    MainSeg *new_main_seg;
     
     // Debug
     uint64_t machine_id;
