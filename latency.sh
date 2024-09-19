@@ -16,9 +16,9 @@ regex="search*\.txt" # 使用find命令查找匹配的文件，并使用read命�
 while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
 done < <(find build/ -type f -name "$regex" -print0)
 
-for file in "${file_list[@]}";
-  do echo "$file"
-done
+# for file in "${file_list[@]}";
+#   do echo "$file"
+# done
 
 # 指定输出文件的名称
 output_file="build/sorted_output.txt"
