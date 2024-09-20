@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
         op_cnt = 1.0 * config.num_op;
         duration = std::chrono::duration<double, std::milli>(end - start).count();
         printf("Run duration:%.2lfms\n", duration);
-        printf("Run IOPS:%.2lfKops\n", op_cnt / duration);
+        printf("Run IOPS:%.3lfMops\n", op_cnt / duration / 1000.0);
         fflush(stdout);
 
         exit_flag.store(false);
