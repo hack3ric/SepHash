@@ -19,7 +19,7 @@
 // #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
-using ClientType = SEPHASH::Client;
+using ClientType = SEPHASH::ClientMultiShard;
 using ServerType = SEPHASH::Server;
 using Slice = SEPHASH::Slice;
 
@@ -181,20 +181,24 @@ int main(int argc, char *argv[])
         std::vector<BasicDB *> clis;
         std::thread ths[80];
 
+        // for (uint64_t i = 0; i < config.server_num; i++) {
+        //     log_err("%s", config.server_ip[i]);
+        // }
+
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             rdma_clis[i] = new rdma_client(dev, so_qp_cap, rdma_default_tempmp_size, config.max_coro, config.cq_size);
-            rdma_conns[i] = rdma_clis[i]->connect(config.server_ip);
+            rdma_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
             assert(rdma_conns[i] != nullptr);
-            rdma_wowait_conns[i] = rdma_clis[i]->connect(config.server_ip);
+            rdma_wowait_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
             assert(rdma_wowait_conns[i] != nullptr);
             for (uint64_t j = 0; j < config.num_coro; j++)
             {
                 lmrs[i * config.num_coro + j] =
                     dev.create_mr(cbuf_size, mem_buf + cbuf_size * (i * config.num_coro + j));
                 BasicDB *cli;
-                cli = new ClientType(config, lmrs[i * config.num_coro + j], rdma_clis[i], rdma_conns[i],
-                                     rdma_wowait_conns[i], config.machine_id, i, j);
+                cli = new ClientType(config, lmrs[i * config.num_coro + j],
+                                    rdma_clis[i], config.machine_id, i, j);
                 clis.push_back(cli);
             }
         }

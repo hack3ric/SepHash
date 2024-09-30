@@ -5,7 +5,8 @@
 struct Config
 {
     bool is_server;
-    const char *server_ip;
+    uint64_t server_num;
+    const char *server_ip[10];
     uint64_t num_machine;
     uint64_t machine_id;
     uint64_t num_cli;
@@ -25,6 +26,18 @@ struct Config
     double read_frac;
     double update_frac;
     double delete_frac;
+
+    std::vector<std::string> splitString(const std::string& str, char delimiter) {
+        std::vector<std::string> tokens;
+        std::string token;
+        std::istringstream tokenStream(str);
+
+        while (std::getline(tokenStream, token, delimiter)) {
+            tokens.push_back(token);
+        }
+
+        return tokens;
+    }
 
     void ParseArg(int argc, char *argv[])
     {
@@ -51,7 +64,14 @@ struct Config
         cmd_parser.parse_check(argc, argv);
 
         is_server = cmd_parser.exist("server");
-        server_ip = cmd_parser.get<std::string>("server_ip").c_str();
+        std::string raw_ip = cmd_parser.get<std::string>("server_ip");
+        std::vector<std::string> server_ips = splitString(raw_ip, ',');
+        server_num = server_ips.size();
+        for (uint64_t i = 0; i < server_num; i++) {
+            std::string *ip = new std::string(server_ips[i]);
+            server_ip[i] = ip->c_str();
+        }
+        // server_ip = cmd_parser.get<std::string>("server_ip").c_str();
         num_machine = cmd_parser.get<uint64_t>("num_machine");
         num_cli = cmd_parser.get<uint64_t>("num_cli");
         num_coro = cmd_parser.get<uint64_t>("num_coro");
@@ -81,7 +101,7 @@ struct Config
     {
         printf("Configuraion\n");
         printf("is_server                 = %s\n", is_server ? "true" : "false");
-        printf("server_ip                 = %s\n", server_ip);
+        // printf("server_ip                 = %s\n", server_ip);
         printf("machine_id                 = %lu\n", machine_id);
         printf("gid_idx                 = %lu\n", gid_idx);
         printf("max_coro                 = %ld\n", max_coro);
