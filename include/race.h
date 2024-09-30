@@ -129,7 +129,7 @@ class Client : public BasicDB
     task<int> LockDir();
     task<> UnlockDir();
     task<int> SetSlot(uint64_t buc_ptr, uint64_t slot);
-    task<> MoveData(uint64_t old_seg_ptr, uint64_t new_seg_ptr, Segment *seg, Segment *new_seg);
+    task<> MoveData(uint64_t local_depth, uint64_t old_seg_ptr, uint64_t new_seg_ptr, Segment *seg, Segment *new_seg);
 
     // rdma structs
     rdma_client *cli;

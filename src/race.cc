@@ -293,6 +293,12 @@ Retry:
     bucptr_1 = segptr + get_buc_off(bucidx_1);
     bucptr_2 = segptr + get_buc_off(bucidx_2);
 
+    // if (dir->segs[segloc].split_lock == 1) {
+    //     co_await sync_dir();
+    //     goto Retry;
+    // }
+
+
     // 1RTT:Doorbell Read && Write KV-Data
     Bucket *buc_data = (Bucket *)alloc.alloc(4ul * sizeof(Bucket));
     auto rbuc1 = conn->read(bucptr_1, rmr.rkey, buc_data, 2 * sizeof(Bucket), lmr->lkey);
@@ -332,6 +338,8 @@ Retry:
     tmp->fp = fp(pattern_1);
     tmp->len = kvblock_len;
     tmp->offset = ralloc.offset(kvblock_ptr);
+    // if (dir->segs[segloc].local_depth > 4)
+    //     log_err("[%lu:%lu:%lu] op_key:%lu segloc:%lu buc_data->local_depth:%u (buc_data + 2)->local_depth:%u dir->segs[segloc].local_depth:%lu",machine_id,cli_id,coro_id,this->op_key,segloc,buc_data->local_depth,(buc_data + 2)->local_depth,dir->segs[segloc].local_depth);
     if (!co_await conn->cas_n(slot_ptr, rmr.rkey, 0, *(uint64_t *)tmp))
     {
         // log_err("[%lu:%lu:%lu] op_key:%lu segloc:%lu fail to cas at slot_ptr:%lx",machine_id,cli_id,coro_id,this->op_key,segloc,slot_ptr);
@@ -494,7 +502,7 @@ task<int> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, uint64_t local_dept
     uint64_t new_seg_loc = first_seg_loc | (1ull << local_depth);
     for (uint64_t i = 0; i < BUCKET_PER_SEGMENT * 3; i++)
     {
-        new_seg->buckets[i].local_depth = local_depth + 1;
+        new_seg->buckets[i].local_depth = 0;
         new_seg->buckets[i].suffix = new_seg_loc;
     }
     co_await conn->write(new_seg_ptr, rmr.rkey, new_seg, sizeof(Segment), lmr->lkey);
@@ -504,7 +512,7 @@ task<int> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, uint64_t local_dept
     co_await sync_dir(); // Global Split必须同步一次Dir，来保证之前没有被同步的DirEntry不会被写到远端。
     if (global_flag)
     {
-        log_err("[%lu:%lu:%lu] %lu update global_depth from:%lu to %lu",machine_id,cli_id,coro_id,this->op_key,dir->global_depth,dir->global_depth+1);
+        log_err("[%lu:%lu:%lu] %lu %lu update global_depth from:%lu to %lu",machine_id,cli_id,coro_id,this->op_key,seg_loc,dir->global_depth,dir->global_depth+1);
         // Update Old_seg depth
         dir->segs[seg_loc].split_lock = 1;
         dir->segs[seg_loc].local_depth = local_depth + 1;
@@ -547,8 +555,14 @@ task<int> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, uint64_t local_dept
 
     // Move Data
     Segment *old_seg = (Segment *)alloc.alloc(sizeof(Segment));
-    co_await MoveData(seg_ptr, new_seg_ptr, old_seg, new_seg);
+    // log_err("MoveData %lu %lu %d", seg_loc, local_depth, global_flag);
+    co_await MoveData(local_depth + 1, seg_ptr, new_seg_ptr, old_seg, new_seg);
 
+    // for (uint64_t i = 0; i < BUCKET_PER_SEGMENT * 3; i++)
+    // {
+    //     new_seg->buckets[i].local_depth = local_depth + 1;
+    // }
+    // co_await conn->write(new_seg_ptr, rmr.rkey, new_seg, sizeof(Segment), lmr->lkey);
     // Free Move_Data Lock
     while (co_await LockDir())
     {
@@ -582,11 +596,16 @@ task<int> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, uint64_t local_dept
     co_return 0;
 }
 
-task<> Client::MoveData(uint64_t old_seg_ptr, uint64_t new_seg_ptr, Segment *seg, Segment *new_seg)
+task<> Client::MoveData(uint64_t local_depth, uint64_t old_seg_ptr, uint64_t new_seg_ptr, Segment *seg, Segment *new_seg)
 {
     struct Bucket *cur_buc;
     uint64_t pattern_1, pattern_2, suffix;
     uint64_t buc_ptr;
+    uint64_t cnt=0;
+    Bucket *new_buc;
+    // Bucket *new_buc = (Bucket *)alloc.alloc(sizeof(Bucket));
+    // Bucket *new_buc1 = (Bucket *)alloc.alloc(2ul * sizeof(Bucket));
+    // Bucket *new_buc2 = (Bucket *)alloc.alloc(2ul * sizeof(Bucket));
 
     for (uint64_t i = 0; i < BUCKET_PER_SEGMENT * 3; i++)
     {
@@ -595,11 +614,14 @@ task<> Client::MoveData(uint64_t old_seg_ptr, uint64_t new_seg_ptr, Segment *seg
         co_await conn->read(buc_ptr, rmr.rkey, cur_buc, sizeof(Bucket), lmr->lkey);
 
         // Update local_depth&suffix
-        cur_buc->local_depth = new_seg->buckets[0].local_depth;
+        cur_buc->local_depth = local_depth;
         co_await conn->write(buc_ptr, rmr.rkey, cur_buc, sizeof(uint64_t), lmr->lkey);
-
-        for (uint64_t slot_idx = 0; slot_idx < SLOT_PER_BUCKET; slot_idx++)
-        {
+        
+        new_buc = &new_seg->buckets[i];
+        // memset(new_buc, 0, sizeof(Bucket));
+        new_buc->local_depth = local_depth;
+        // new_buc->suffix = new_seg->buckets[0].suffix;
+        for (uint64_t slot_idx = 0, tot = 0; slot_idx < SLOT_PER_BUCKET; slot_idx++) {
             if (*(uint64_t *)(&cur_buc->slots[slot_idx]) == 0)
                 continue;
             KVBlock *kv_block = (KVBlock *)alloc.alloc(cur_buc->slots[slot_idx].len);
@@ -610,41 +632,72 @@ task<> Client::MoveData(uint64_t old_seg_ptr, uint64_t new_seg_ptr, Segment *seg
             pattern_1 = (uint64_t)pattern;
             pattern_2 = (uint64_t)(pattern >> 64);
             suffix = get_seg_loc(pattern_1, dir->global_depth);
-            if (check_suffix(suffix, new_seg->buckets[0].suffix, new_seg->buckets[0].local_depth) == 0)
-            {
-                // Find free slot in two bucketgroup
-                uint64_t bucidx_1 = get_buc_loc(pattern_1);
-                uint64_t bucptr_1 = new_seg_ptr + get_buc_off(bucidx_1);
-                uint64_t main_buc_ptr1 = get_main_ptr(bucidx_1, bucptr_1);
-                uint64_t over_buc_ptr1 = get_over_ptr(bucidx_1, bucptr_1);
-                uint64_t bucidx_2 = get_buc_loc(pattern_2);
-                uint64_t bucptr_2 = new_seg_ptr + get_buc_off(bucidx_2);
-                uint64_t main_buc_ptr2 = get_main_ptr(bucidx_2, bucptr_2);
-                uint64_t over_buc_ptr2 = get_over_ptr(bucidx_2, bucptr_2);
-
-                // 依次尝试Bucket 1，OverBuc 1，Bucket 2，OverBuc 2
-                if (co_await SetSlot(main_buc_ptr1, *(uint64_t *)(&cur_buc->slots[slot_idx])) &&
-                    co_await SetSlot(over_buc_ptr1, *(uint64_t *)(&cur_buc->slots[slot_idx])) &&
-                    co_await SetSlot(main_buc_ptr2, *(uint64_t *)(&cur_buc->slots[slot_idx])) &&
-                    co_await SetSlot(over_buc_ptr2, *(uint64_t *)(&cur_buc->slots[slot_idx])))
-                {
-                    uintptr_t slot_ptr = buc_ptr + sizeof(uint64_t) + sizeof(Slot) * i;
-                    log_err("[%lu:%lu:%lu]Fail to move slot_ptr:%lx",machine_id,cli_id,coro_id,slot_ptr);
-                    continue;
-                }
-
-                // CAS slot in old seg to zero
-                //  assert((buc_ptr+sizeof(uint64_t)*(slot_idx+1))%8 == 0);
-                uint64_t old_slot = *(uint64_t *)(&cur_buc->slots[slot_idx]);
-                co_await conn->cas(buc_ptr + sizeof(uint64_t) * (slot_idx + 1), rmr.rkey, old_slot, 0);
-                if (old_slot != *(uint64_t *)(&cur_buc->slots[slot_idx]))
-                {
-                    //也不影响，只要是这里被的旧slot被删除了就行
-                    //只有可能是并发的update导致的
-                }
+            if (check_suffix(suffix, new_seg->buckets[0].suffix, local_depth) == 0) {
+                new_buc->slots[tot] = cur_buc->slots[slot_idx];
+                tot++;
             }
+            uint64_t old_slot = *(uint64_t *)(&cur_buc->slots[slot_idx]);
+            co_await conn->cas(buc_ptr + sizeof(uint64_t) * (slot_idx + 1), rmr.rkey, old_slot, 0);
         }
+        // co_await conn->write(new_seg_ptr + i * sizeof(Bucket), rmr.rkey, new_buc, sizeof(Bucket), lmr->lkey);
+
+        // for (uint64_t slot_idx = 0; slot_idx < SLOT_PER_BUCKET; slot_idx++)
+        // {
+        //     if (*(uint64_t *)(&cur_buc->slots[slot_idx]) == 0)
+        //         continue;
+        //     KVBlock *kv_block = (KVBlock *)alloc.alloc(cur_buc->slots[slot_idx].len);
+        //     co_await conn->read(ralloc.ptr(cur_buc->slots[slot_idx].offset), rmr.rkey, kv_block,
+        //                         cur_buc->slots[slot_idx].len, lmr->lkey);
+
+        //     auto pattern = hash(kv_block->data, kv_block->k_len);
+        //     pattern_1 = (uint64_t)pattern;
+        //     pattern_2 = (uint64_t)(pattern >> 64);
+        //     suffix = get_seg_loc(pattern_1, dir->global_depth);
+        //     if (check_suffix(suffix, new_seg->buckets[0].suffix, local_depth) == 0)
+        //     {
+        //         // Find free slot in two bucketgroup
+        //         uint64_t bucidx_1 = get_buc_loc(pattern_1);
+        //         uint64_t bucptr_1 = new_seg_ptr + get_buc_off(bucidx_1);
+        //         uint64_t main_buc_ptr1 = get_main_ptr(bucidx_1, bucptr_1);
+        //         uint64_t over_buc_ptr1 = get_over_ptr(bucidx_1, bucptr_1);
+        //         uint64_t bucidx_2 = get_buc_loc(pattern_2);
+        //         uint64_t bucptr_2 = new_seg_ptr + get_buc_off(bucidx_2);
+        //         uint64_t main_buc_ptr2 = get_main_ptr(bucidx_2, bucptr_2);
+        //         uint64_t over_buc_ptr2 = get_over_ptr(bucidx_2, bucptr_2);
+
+        //         co_await conn->read(bucptr_1, rmr.rkey, new_buc1, 2 * sizeof(Bucket), lmr->lkey);
+        //         co_await conn->read(bucptr_2, rmr.rkey, new_buc2, 2 * sizeof(Bucket), lmr->lkey);
+        //         bool res = FindLessBucket(new_buc1, new_buc2);
+        //         if (!res) {
+        //             std::swap(main_buc_ptr1, main_buc_ptr2);
+        //             std::swap(over_buc_ptr1, over_buc_ptr2);
+        //         }
+
+        //         // 依次尝试Bucket 1，OverBuc 1，Bucket 2，OverBuc 2
+        //         if (co_await SetSlot(main_buc_ptr1, *(uint64_t *)(&cur_buc->slots[slot_idx])) &&
+        //             co_await SetSlot(over_buc_ptr1, *(uint64_t *)(&cur_buc->slots[slot_idx])) &&
+        //             co_await SetSlot(main_buc_ptr2, *(uint64_t *)(&cur_buc->slots[slot_idx])) &&
+        //             co_await SetSlot(over_buc_ptr2, *(uint64_t *)(&cur_buc->slots[slot_idx])))
+        //         {
+        //             uintptr_t slot_ptr = buc_ptr + sizeof(uint64_t) + sizeof(Slot) * slot_idx;
+        //             log_err("[%lu:%lu:%lu]Fail to move slot:%lu %lu",machine_id,cli_id,coro_id,i,slot_idx);
+        //             continue;
+        //         }
+
+        //         // CAS slot in old seg to zero
+        //         //  assert((buc_ptr+sizeof(uint64_t)*(slot_idx+1))%8 == 0);
+        //         uint64_t old_slot = *(uint64_t *)(&cur_buc->slots[slot_idx]);
+        //         co_await conn->cas(buc_ptr + sizeof(uint64_t) * (slot_idx + 1), rmr.rkey, old_slot, 0);
+        //         if (old_slot != *(uint64_t *)(&cur_buc->slots[slot_idx]))
+        //         {
+        //             //也不影响，只要是这里被的旧slot被删除了就行
+        //             //只有可能是并发的update导致的
+        //         }
+        //     }
+        // }
     }
+        co_await conn->write(new_seg_ptr, rmr.rkey, new_seg, sizeof(Segment), lmr->lkey);
+
 }
 
 /// @brief Used in MoveData
@@ -747,8 +800,8 @@ task<std::tuple<uintptr_t, uint64_t>> Client::search_on_resize(Slice *key, Slice
     uint64_t slot;
     uint64_t cnt = 0;
 Retry:
-    if((++cnt)%1000==0)
-        log_err("[%lu:%lu]search_on_resize for key:%lx",cli_id,coro_id,*(uint64_t*)key->data);
+    // if((++cnt)%1000==0)
+    //     log_err("[%lu:%lu]search_on_resize for key:%lx",cli_id,coro_id,*(uint64_t*)key->data);
     alloc.ReSet(sizeof(Directory));
     co_await sync_dir();
     uint64_t pattern_1, pattern_2;
