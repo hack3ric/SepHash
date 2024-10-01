@@ -168,8 +168,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        uint64_t cbuf_size = (1ul << 20) * 60;
-        char *mem_buf = (char *)malloc(cbuf_size * (config.num_cli * config.num_coro + 1));
+        uint64_t cbuf_size = (1ul << 20) * 20;
+        char *mem_buf = (char *)malloc(cbuf_size * (config.server_num * config.num_cli * config.num_coro + 1));
         // rdma_dev dev("mlx5_1", 1, config.gid_idx);
         rdma_dev dev("mlx5_0", 1, config.gid_idx);
         // rdma_dev dev(nullptr, 1, config.gid_idx);
@@ -181,23 +181,23 @@ int main(int argc, char *argv[])
         std::vector<BasicDB *> clis;
         std::thread ths[80];
 
-        // for (uint64_t i = 0; i < config.server_num; i++) {
-        //     log_err("%s", config.server_ip[i]);
-        // }
+        for (uint64_t i = 0; i < config.server_num; i++) {
+            log_err("%s", config.server_ip[i]);
+        }
 
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             rdma_clis[i] = new rdma_client(dev, so_qp_cap, rdma_default_tempmp_size, config.max_coro, config.cq_size);
-            rdma_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
-            assert(rdma_conns[i] != nullptr);
-            rdma_wowait_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
-            assert(rdma_wowait_conns[i] != nullptr);
+            // rdma_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
+            // assert(rdma_conns[i] != nullptr);
+            // rdma_wowait_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
+            // assert(rdma_wowait_conns[i] != nullptr);
             for (uint64_t j = 0; j < config.num_coro; j++)
             {
-                lmrs[i * config.num_coro + j] =
-                    dev.create_mr(cbuf_size, mem_buf + cbuf_size * (i * config.num_coro + j));
+                // lmrs[i * config.num_coro + j] =
+                //     dev.create_mr(cbuf_size, mem_buf + cbuf_size * (i * config.num_coro + j));
                 BasicDB *cli;
-                cli = new ClientType(config, lmrs[i * config.num_coro + j],
+                cli = new ClientType(config, dev, mem_buf, cbuf_size,
                                     rdma_clis[i], config.machine_id, i, j);
                 clis.push_back(cli);
             }
@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
         {
             for (uint64_t j = 0; j < config.num_coro; j++)
             {
-                rdma_free_mr(lmrs[i * config.num_coro + j], false);
+                // rdma_free_mr(lmrs[i * config.num_coro + j], false);
                 delete clis[i * config.num_coro + j];
             }
             delete rdma_wowait_conns[i];

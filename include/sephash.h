@@ -254,8 +254,8 @@ class ClientMultiShard : public BasicDB{
     }
 
 public:
-    ClientMultiShard(Config &config, ibv_mr *_lmr, rdma_client *_cli,
-        uint64_t _machine_id, uint64_t _cli_id, uint64_t _coro_id) {
+    ClientMultiShard(Config &config, rdma_dev &dev, char *mem_buf, uint64_t cbuf_size,
+        rdma_client *_cli, uint64_t _machine_id, uint64_t _cli_id, uint64_t _coro_id) {
         rdma_conn *rdma_conns, *rdma_wowait_conns;
         shards = config.server_num;
         client_list.resize(shards);
@@ -264,8 +264,9 @@ public:
             assert(rdma_conns != nullptr);
             rdma_wowait_conns = _cli->connect(config.server_ip[i]);
             assert(rdma_wowait_conns != nullptr);
+            ibv_mr *lmr = dev.create_mr(cbuf_size, mem_buf + cbuf_size * ((_cli_id * config.num_coro + _coro_id) * config.server_num + i));
             client_list[i] = 
-                    new Client(config, _lmr, _cli, rdma_conns, rdma_wowait_conns, _machine_id, _cli_id, _coro_id);
+                    new Client(config, lmr, _cli, rdma_conns, rdma_wowait_conns, _machine_id, _cli_id, _coro_id);
         }
     }
 

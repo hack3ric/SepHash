@@ -133,6 +133,7 @@ Client::~Client()
     // log_err("[%lu:%lu] miss_cnt:%lu", cli_id, coro_id, miss_cnt);
     perf.print(cli_id,coro_id);
     sum_cost.print(cli_id,coro_id);
+    rdma_free_mr(lmr, false);
 }
 
 task<> Client::cal_utilization(){
