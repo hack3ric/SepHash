@@ -5,4 +5,4 @@ fi
 mkdir build
 cd build
 cmake ..
-make -j4 ser_cli
+make -j8 ser_cli

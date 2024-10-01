@@ -23,7 +23,7 @@ constexpr uint64_t SLOT_PER_BUCKET = 8;
 constexpr uint64_t BUCKET_BITS = 12;
 constexpr uint64_t BUCKET_PER_SEGMENT = 1 << (BUCKET_BITS);
 constexpr uint64_t INIT_DEPTH = 4;
-constexpr uint64_t MAX_DEPTH = 20;
+constexpr uint64_t MAX_DEPTH = 18;
 constexpr uint64_t DIR_SIZE = (1 << MAX_DEPTH);
 
 struct Slot
@@ -151,6 +151,84 @@ class Client : public BasicDB
 
     // Data part
     Directory *dir;
+};
+
+class ClientMultiShard : public BasicDB{
+    const static uint32_t seed = 0x1b873593;
+
+    Client *get_shard(Slice *key) {
+        uint32_t pos = hash(key->data, key->len, seed);
+        return client_list[pos % shards];
+    }
+
+public:
+    ClientMultiShard(Config &config, rdma_dev &dev, char *mem_buf, uint64_t cbuf_size,
+        rdma_client *_cli, uint64_t _machine_id, uint64_t _cli_id, uint64_t _coro_id) {
+        rdma_conn *rdma_conns, *rdma_wowait_conns;
+        shards = config.server_num;
+        client_list.resize(shards);
+        for (uint64_t i = 0; i < shards; i++) {
+            rdma_conns = _cli->connect(config.server_ip[i]);
+            assert(rdma_conns != nullptr);
+            rdma_wowait_conns = _cli->connect(config.server_ip[i]);
+            assert(rdma_wowait_conns != nullptr);
+            ibv_mr *lmr = dev.create_mr(cbuf_size, mem_buf + cbuf_size * ((_cli_id * config.num_coro + _coro_id) * config.server_num + i));
+            client_list[i] = 
+                    new Client(config, lmr, _cli, rdma_conns, rdma_wowait_conns, _machine_id, _cli_id, _coro_id);
+        }
+    }
+
+    ~ClientMultiShard() {
+        for (auto &client: client_list) {
+            delete client;
+        }
+    }
+
+    ClientMultiShard(const ClientMultiShard&) = delete;
+
+    task<> start(uint64_t total) {
+        for (auto &client: client_list) {
+            co_await client->start(total);
+        }
+    }
+
+    task<> stop() {
+        for (auto &client: client_list) {
+            co_await client->stop();
+        }
+    }
+
+    task<> reset_remote() {
+        for (auto &client: client_list) {
+            co_await client->reset_remote();
+        }
+    }
+
+    task<> cal_utilization() {
+        for (auto &client: client_list) {
+            co_await client->cal_utilization();
+        }
+    }
+
+    task<> insert(Slice *key, Slice *value) {
+        co_await get_shard(key)->insert(key, value);
+    }
+
+    task<> search(Slice *key, Slice *value) {
+        co_await get_shard(key)->search(key, value);
+    }
+
+    task<> update(Slice *key, Slice *value) {
+        co_await get_shard(key)->update(key, value);
+    }
+
+    task<> remove(Slice *key) {
+        co_await get_shard(key)->remove(key);
+    }
+
+private:
+    int shards;
+    std::vector<Client*> client_list;
 };
 
 class Server : public BasicDB

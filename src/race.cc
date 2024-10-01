@@ -139,6 +139,7 @@ Client::~Client()
 {
     perf.print(cli_id,coro_id);
     sum_cost.print(cli_id,coro_id);
+    rdma_free_mr(lmr, false);
 }
 
 task<> Client::reset_remote()
