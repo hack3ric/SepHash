@@ -20,8 +20,8 @@ struct Perf
     std::chrono::high_resolution_clock::time_point end;
     
     void init(){
-        insert_lat.reserve(10000000);
-        search_lat.reserve(1000000);
+        insert_lat.reserve(100000005);
+        search_lat.reserve(100000005);
     }
 
     void init(uint64_t insert_num,uint64_t search_num){

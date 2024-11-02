@@ -17,7 +17,7 @@
 #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
-using ClientType = SEPHASH::Client;
+using ClientType = SEPHASH::ClientMultiShard;
 using ServerType = SEPHASH::Server;
 using Slice = SEPHASH::Slice;
 

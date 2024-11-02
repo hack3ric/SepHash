@@ -28,5 +28,8 @@ set(libs "-lpthread -lm -ldl -libverbs -lpthread" )
 add_executable(ser_cli test/ser_cli.cc ${src})
 target_link_libraries(ser_cli PRIVATE ${libs})
 
-add_executable(ser_cli_var_kv test/ser_cli_var_kv.cc ${src})
-target_link_libraries(ser_cli_var_kv PRIVATE ${libs})
+# add_executable(ser_cli_var_kv test/ser_cli_var_kv.cc ${src})
+# target_link_libraries(ser_cli_var_kv PRIVATE ${libs})
+
+add_executable(test_rdma test/test_rdma.cpp ${src})
+target_link_libraries(test_rdma PRIVATE ${libs})

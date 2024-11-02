@@ -16,12 +16,17 @@
 #include "split_search_fptable_wocache.h"
 #include <set>
 #include <stdint.h>
+#include <atomic>
+
 // #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
 using ClientType = SEPHASH::ClientMultiShard;
 using ServerType = SEPHASH::Server;
 using Slice = SEPHASH::Slice;
+
+std::atomic<long long> op_counter ;
+bool start_flag ;
 
 inline uint64_t GenKey(uint64_t key)
 {
@@ -44,11 +49,16 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
     value.data = (char *)tmp_value.data();
     key.len = sizeof(uint64_t);
     key.data = (char *)&tmp_key;
-    uint64_t num_op = load_num / (config.num_machine * config.num_cli * config.num_coro);
-    for (uint64_t i = 0; i < num_op; i++)
+    // uint64_t num_op = load_num / (config.num_machine * config.num_cli * config.num_coro);
+    while( !start_flag ) ;
+    for (uint64_t i = 1 ; ; i++)
     {
+        if( ( i - 1 ) % 100 == 0 ){
+            long long tmp = op_counter.fetch_add( 100 ) ;
+            if( tmp >= config.load_num / config.num_machine ) break ;
+        }
         tmp_key = GenKey(
-            (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * num_op + i);
+            (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * config.num_op + i);
         co_await cli->insert(&key, &value);
     }
     co_await cli->stop();
@@ -82,11 +92,18 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
     double update_frac = config.insert_frac + config.read_frac + config.update_frac;
     xoshiro256pp op_chooser;
     xoshiro256pp key_chooser;
-    uint64_t num_op = config.num_op / (config.num_machine * config.num_cli * config.num_coro);
     uint64_t load_avr = load_num / (config.num_machine * config.num_cli * config.num_coro);
-    // uint64_t load_avr = num_op;
-    for (uint64_t i = 0; i < num_op; i++)
+    // uint64_t num_op = config.num_op / (config.num_machine * config.num_cli * config.num_coro);
+    while( !start_flag ) ;
+    for (uint64_t i = 1 ; ; i++)
     {
+        if( ( i - 1 ) % 100 == 0 ){
+            long long tmp = op_counter.fetch_add( 100 ) ;
+            if( tmp >= config.num_op / config.num_machine ) {
+                log_err( "%lu thr, %lu coro runs %lu operations" , cli_id , coro_id , i - 1 ) ;
+                break ;
+            }
+        }
         op_frac = op_chooser();
         if (op_frac < config.insert_frac)
         {
@@ -94,7 +111,6 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
                 load_num +
                 (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
                 gen->operator()(key_chooser()));
-            // log_err("run insert:%lu",tmp_key);
             co_await cli->insert(&key, &value);
         }
         else if (op_frac < read_frac)
@@ -103,15 +119,7 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
             tmp_key = GenKey(
                 (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
                 gen->operator()(key_chooser()));
-            // log_err("run search:%lu",tmp_key);
             co_await cli->search(&key, &ret_value);
-            // if (ret_value.len != value.len || memcmp(ret_value.data, value.data, value.len) != 0)
-            // {
-            //     // log_err("[%lu:%lu]wrong value for key:%lu with value:%s expected:%s ret_value.len:%lu
-            //     value.len:%lu", cli_id, coro_id, tmp_key,
-            //     //         ret_value.data, value.data,ret_value.len, value.len);
-            //     // exit(-1);
-            // }
         }
         else if (op_frac < update_frac)
         {
@@ -120,15 +128,6 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
                 (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
                 gen->operator()(key_chooser()));
             co_await cli->update(&key, &update_value);
-            // auto [slot_ptr, slot] = co_await cli->search(&key, &ret_value);
-            // if (slot_ptr == 0ull)
-            //     log_err("[%lu:%lu]update for key:%lu result in loss", cli_id, coro_id, tmp_key);
-            // else if (ret_value.len != update_value.len || memcmp(ret_value.data, update_value.data, update_value.len)
-            // != 0)
-            // {
-            //     log_err("[%lu:%lu]wrong value for key:%lu with value:%s expected:%s", cli_id, coro_id, tmp_key,
-            //             ret_value.data, update_value.data);
-            // }
         }
         else
         {
@@ -137,19 +136,6 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
                 (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
                 gen->operator()(key_chooser()));
             co_await cli->remove(&key);
-            // uint64_t cnt = 0;
-            // while(true){
-            //     auto [slot_ptr, slot] = co_await cli->search(&key, &ret_value);
-            //     if (slot_ptr != 0ull)
-            //         log_err("[%lu:%lu]fail to delete value for key:%lu with slot_ptr:%lx and ret_value:%s", cli_id,
-            //         coro_id, tmp_key,slot_ptr,ret_value.data);
-            //     else
-            //         break;
-            //     if(cnt++>=3){
-            //         exit(-1);
-            //     }
-            //     co_await cli->remove(&key);
-            // }
         }
     }
     co_await cli->stop();
@@ -188,14 +174,8 @@ int main(int argc, char *argv[])
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             rdma_clis[i] = new rdma_client(dev, so_qp_cap, rdma_default_tempmp_size, config.max_coro, config.cq_size);
-            // rdma_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
-            // assert(rdma_conns[i] != nullptr);
-            // rdma_wowait_conns[i] = rdma_clis[i]->connect(config.server_ip[0]);
-            // assert(rdma_wowait_conns[i] != nullptr);
             for (uint64_t j = 0; j < config.num_coro; j++)
             {
-                // lmrs[i * config.num_coro + j] =
-                //     dev.create_mr(cbuf_size, mem_buf + cbuf_size * (i * config.num_coro + j));
                 BasicDB *cli;
                 cli = new ClientType(config, dev, mem_buf, cbuf_size,
                                     rdma_clis[i], config.machine_id, i, j);
@@ -210,25 +190,9 @@ int main(int argc, char *argv[])
                            typeid(ClientType) == typeid(ClevelSingleFilter::Client);
         ;
 
-        if (config.machine_id == 0 && rehash_flag)
-        {
-            // rdma_clis[config.num_cli] = new rdma_client(dev, so_qp_cap, rdma_default_tempmp_size, config.max_coro,
-            // config.cq_size); rdma_conns[config.num_cli] = rdma_clis[config.num_cli]->connect(config.server_ip);
-            // rdma_wowait_conns[config.num_cli] = rdma_clis[config.num_cli]->connect(config.server_ip);
-
-            // lmrs[config.num_cli * config.num_coro] =
-            //         dev.create_mr(cbuf_size, mem_buf + cbuf_size * (config.num_cli * config.num_coro));
-            // ClientType * rehash_cli = new ClientType(config, lmrs[config.num_cli * config.num_coro],
-            // rdma_clis[config.num_cli],
-            // rdma_conns[config.num_cli],rdma_wowait_conns[config.num_cli],config.machine_id, config.num_cli,
-            // config.num_coro); auto th = [&](rdma_client *rdma_cli) {
-            //     rdma_cli->run(rehash_cli->rehash(exit_flag));
-            // };
-            // ths[config.num_cli] = std::thread(th,rdma_clis[config.num_cli]);
-        }
-
         printf("Load start\n");
-        auto start = std::chrono::steady_clock::now();
+        start_flag = false ;
+        op_counter.store( 0 ) ;
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             auto th = [&](rdma_client *rdma_cli, uint64_t cli_id) {
@@ -241,6 +205,8 @@ int main(int argc, char *argv[])
             };
             ths[i] = std::thread(th, rdma_clis[i], i);
         }
+        auto start = std::chrono::steady_clock::now();
+        start_flag = true ;
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             ths[i].join();
@@ -250,10 +216,11 @@ int main(int argc, char *argv[])
         double duration = std::chrono::duration<double, std::milli>(end - start).count();
         printf("Load duration:%.2lfms\n", duration);
         printf("Load IOPS:%.2lfKops\n", op_cnt / duration);
-        fflush(stdout);
-        // ths[config.num_cli].join();
+        fflush(stdout); 
 
         printf("Run start\n");
+        start_flag = false ;
+        op_counter.store( 0 ) ;
         auto op_per_coro = config.num_op / (config.num_machine * config.num_cli * config.num_coro);
         std::vector<Generator *> gens;
         for (uint64_t i = 0; i < config.num_cli * config.num_coro; i++)
@@ -275,7 +242,6 @@ int main(int argc, char *argv[])
                 gens.push_back(new SkewedLatestGenerator(op_per_coro));
             }
         }
-        start = std::chrono::steady_clock::now();
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             auto th = [&](rdma_client *rdma_cli, uint64_t cli_id) {
@@ -289,6 +255,8 @@ int main(int argc, char *argv[])
             };
             ths[i] = std::thread(th, rdma_clis[i], i);
         }
+        start = std::chrono::steady_clock::now();
+        start_flag = true ;
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             ths[i].join();
@@ -301,36 +269,6 @@ int main(int argc, char *argv[])
         fflush(stdout);
 
         exit_flag.store(false);
-        if (config.machine_id == 0 && rehash_flag)
-        {
-            // ths[config.num_cli].join();
-        }
-        if (config.machine_id != 0 && rehash_flag)
-        {
-            // rdma_clis[config.num_cli] = new rdma_client(dev, so_qp_cap, rdma_default_tempmp_size, config.max_coro,
-            // config.cq_size); rdma_conns[config.num_cli] = rdma_clis[config.num_cli]->connect(config.server_ip);
-            // rdma_wowait_conns[config.num_cli] = rdma_clis[config.num_cli]->connect(config.server_ip);
-
-            // lmrs[config.num_cli * config.num_coro] =
-            //         dev.create_mr(cbuf_size, mem_buf + cbuf_size * (config.num_cli * config.num_coro));
-            // ClientType* check_cli = new ClientType(config, lmrs[config.num_cli * config.num_coro],
-            // rdma_clis[config.num_cli],
-            // rdma_conns[config.num_cli],rdma_wowait_conns[config.num_cli],config.machine_id, config.num_cli,
-            // config.num_coro);
-
-            // auto th = [&](rdma_client *rdma_cli) {
-            //     while(rdma_cli->run(check_cli->check_exit())){
-            //         // log_err("waiting for rehash exit");
-            //     }
-            // };
-            // ths[config.num_cli] = std::thread(th,rdma_clis[config.num_cli]);
-            // ths[config.num_cli].join();
-        }
-
-        if (config.machine_id == 0)
-        {
-            // rdma_clis[0]->run(((ClientType*)clis[0])->cal_utilization());
-        }
 
         for (auto gen : gens)
         {
