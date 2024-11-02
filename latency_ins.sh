@@ -12,9 +12,9 @@ regex="insert*\.txt" # 使用find命令查找匹配的文件，并使用read命�
 while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
 done < <(find build/ -type f -name "$regex" -print0)
 
-regex="search*\.txt" # 使用find命令查找匹配的文件，并使用read命令将结果存储到数组中
-while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
-done < <(find build/ -type f -name "$regex" -print0)
+# regex="search*\.txt" # 使用find命令查找匹配的文件，并使用read命令将结果存储到数组中
+# while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
+# done < <(find build/ -type f -name "$regex" -print0)
 
 # for file in "${file_list[@]}";
 #   do echo "$file"
@@ -39,4 +39,4 @@ sort -n "$output_file" -o "$output_file"
 
 python3 data_latency.py
 
-rm build/*lat*
+rm build/$regex

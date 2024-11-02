@@ -100,9 +100,11 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
         if( ( i - 1 ) % 100 == 0 ){
             long long tmp = op_counter.fetch_add( 100 ) ;
             if( tmp >= config.num_op / config.num_machine ) {
-                log_err( "%lu thr, %lu coro runs %lu operations" , cli_id , coro_id , i - 1 ) ;
+                // log_err( "finish: %lu node, %lu thr, %lu coro runs %lu operations" , config.machine_id, cli_id , coro_id , i - 1 ) ;
                 break ;
             }
+            // if( ( i - 1 ) % 1000000 == 0 )
+            //     log_err( "%lu node, %lu thr, %lu coro runs %lu operations" , config.machine_id, cli_id , coro_id , i - 1 ) ;  
         }
         op_frac = op_chooser();
         if (op_frac < config.insert_frac)

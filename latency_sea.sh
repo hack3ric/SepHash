@@ -8,9 +8,9 @@ declare -a file_list=()
 
 # 定义你想要匹配的正则表达式
 # 例如，匹配当前目录及子目录下所有以.txt结尾的文件
-regex="insert*\.txt" # 使用find命令查找匹配的文件，并使用read命令将结果存储到数组中
-while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
-done < <(find build/ -type f -name "$regex" -print0)
+# regex="insert*\.txt" # 使用find命令查找匹配的文件，并使用read命令将结果存储到数组中
+# while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
+# done < <(find build/ -type f -name "$regex" -print0)
 
 regex="search*\.txt" # 使用find命令查找匹配的文件，并使用read命令将结果存储到数组中
 while IFS= read -r -d '' file_path; do  file_list+=("$file_path")
@@ -39,4 +39,4 @@ sort -n "$output_file" -o "$output_file"
 
 python3 data_latency.py
 
-rm build/*lat*
+rm build/$regex
