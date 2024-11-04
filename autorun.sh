@@ -10,9 +10,9 @@ for machine in ${machines[@]}; do
 			./run_ser.sh
 			sleep 8
 			echo "./run_cli.sh $thread $coro $machine > thropt_${thread}_${coro}_${machine}.thropt"
-			./run_cli.sh ${thread} ${coro} ${machine} # > thropt_${thread}_${coro}_${machine}.thropt
+			./run_cli.sh ${thread} ${coro} ${machine} > thropt_${thread}_${coro}_${machine}.thropt
 			echo "./latancy.sh > lat_${thread}_${coro}_${machine}.latency"
-			./latancy.sh > lat_${thread}_${coro}_${machine}.latency
+			./latency.sh > lat_${thread}_${coro}_${machine}.latency
 			echo "./kill_ser.sh"
 			./kill_ser.sh
 			sleep 10

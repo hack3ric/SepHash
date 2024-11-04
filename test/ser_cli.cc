@@ -46,20 +46,17 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
     Slice key, value;
     std::string tmp_value = std::string(8, '1');
     value.len = tmp_value.length();
-    value.data = (char *)tmp_value.data();
+    value.data = (char *)tmp_value.data() ;
     key.len = sizeof(uint64_t);
     key.data = (char *)&tmp_key;
-    uint64_t load_avr = load_num / (config.num_machine * config.num_cli * config.num_coro);
-    uint64_t shardid = config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id ;
     while( !start_flag ) ;
-    for (uint64_t i = 1 ; ; i++)
-    {
-        if( ( i - 1 ) % 100 == 0 ){
-            long long tmp = op_counter.fetch_add( 100 ) ;
-            if( tmp >= config.load_num / config.num_machine ) break ;
+    while( true ){
+        long long tmp_start = op_counter.fetch_add( 100 ) ;
+        if( tmp_start >= config.load_num / config.num_machine ) break ;
+        for( int i = 0 ; i < 100 ; i ++ ){
+            tmp_key = GenKey( tmp_start + i ) ;
+            co_await cli->insert( &key , &value ) ;
         }
-        tmp_key = GenKey( shardid * load_avr + i);
-        co_await cli->insert(&key, &value);
     }
     co_await cli->stop();
     co_return;
@@ -93,7 +90,6 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
     xoshiro256pp op_chooser;
     xoshiro256pp key_chooser;
     uint64_t load_avr = load_num / (config.num_machine * config.num_cli * config.num_coro);
-    uint64_t op_avr   = config.num_op / ( config.num_machine * config.num_cli * config.num_coro ) ;
     uint64_t shardid = config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id ;
     // uint64_t num_op = config.num_op / (config.num_machine * config.num_cli * config.num_coro);
     while( !start_flag ) ;
@@ -102,17 +98,13 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
         if( ( i - 1 ) % 100 == 0 ){
             long long tmp = op_counter.fetch_add( 100 ) ;
             if( tmp >= config.num_op / config.num_machine ) {
-                // log_err( "finish: %lu node, %lu thr, %lu coro runs %lu operations" , config.machine_id, cli_id , coro_id , i - 1 ) ;
                 break ;
-            }
-            // if( ( i - 1 ) % 1000000 == 0 )
-            //     log_err( "%lu node, %lu thr, %lu coro runs %lu operations" , config.machine_id, cli_id , coro_id , i - 1 ) ;  
+            } 
         }
         op_frac = op_chooser();
         if (op_frac < config.insert_frac)
         {
-            tmp_key = GenKey(
-                load_num + shardid * op_avr + gen->operator()(key_chooser()) );
+            tmp_key = GenKey( load_num + shardid * load_avr + gen->operator()(key_chooser()) );
             co_await cli->insert(&key, &value);
         }
         else if (op_frac < read_frac)
@@ -217,25 +209,25 @@ int main(int argc, char *argv[])
         printf("Run start\n");
         start_flag = false ;
         op_counter.store( 0 ) ;
-        auto op_per_coro = config.num_op / (config.num_machine * config.num_cli * config.num_coro);
+        auto load_per_coro = config.load_num / (config.num_machine * config.num_cli * config.num_coro);
         std::vector<Generator *> gens;
         for (uint64_t i = 0; i < config.num_cli * config.num_coro; i++)
         {
             if (config.pattern_type == 0)
             {
-                gens.push_back(new seq_gen(op_per_coro));
+                gens.push_back(new seq_gen(load_per_coro));
             }
             else if (config.pattern_type == 1)
             {
-                gens.push_back(new uniform(op_per_coro));
+                gens.push_back(new uniform(load_per_coro));
             }
             else if (config.pattern_type == 2)
             {
-                gens.push_back(new zipf99(op_per_coro));
+                gens.push_back(new zipf99(load_per_coro));
             }
             else
             {
-                gens.push_back(new SkewedLatestGenerator(op_per_coro));
+                gens.push_back(new SkewedLatestGenerator(load_per_coro));
             }
         }
         for (uint64_t i = 0; i < config.num_cli; i++)
