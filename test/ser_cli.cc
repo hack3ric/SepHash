@@ -21,9 +21,9 @@
 // #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
-using ClientType = SEPHASH::ClientMultiShard;
-using ServerType = SEPHASH::Server;
-using Slice = SEPHASH::Slice;
+using ClientType = RACE::ClientMultiShard;
+using ServerType = RACE::Server;
+using Slice = RACE::Slice;
 
 std::atomic<long long> op_counter ;
 bool start_flag ;
@@ -49,7 +49,8 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
     value.data = (char *)tmp_value.data();
     key.len = sizeof(uint64_t);
     key.data = (char *)&tmp_key;
-    // uint64_t num_op = load_num / (config.num_machine * config.num_cli * config.num_coro);
+    uint64_t load_avr = load_num / (config.num_machine * config.num_cli * config.num_coro);
+    uint64_t shardid = config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id ;
     while( !start_flag ) ;
     for (uint64_t i = 1 ; ; i++)
     {
@@ -57,8 +58,7 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
             long long tmp = op_counter.fetch_add( 100 ) ;
             if( tmp >= config.load_num / config.num_machine ) break ;
         }
-        tmp_key = GenKey(
-            (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * config.num_op + i);
+        tmp_key = GenKey( shardid * load_avr + i);
         co_await cli->insert(&key, &value);
     }
     co_await cli->stop();
@@ -93,6 +93,8 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
     xoshiro256pp op_chooser;
     xoshiro256pp key_chooser;
     uint64_t load_avr = load_num / (config.num_machine * config.num_cli * config.num_coro);
+    uint64_t op_avr   = config.num_op / ( config.num_machine * config.num_cli * config.num_coro ) ;
+    uint64_t shardid = config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id ;
     // uint64_t num_op = config.num_op / (config.num_machine * config.num_cli * config.num_coro);
     while( !start_flag ) ;
     for (uint64_t i = 1 ; ; i++)
@@ -110,33 +112,25 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
         if (op_frac < config.insert_frac)
         {
             tmp_key = GenKey(
-                load_num +
-                (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
-                gen->operator()(key_chooser()));
+                load_num + shardid * op_avr + gen->operator()(key_chooser()) );
             co_await cli->insert(&key, &value);
         }
         else if (op_frac < read_frac)
         {
             ret_value.len = 0;
-            tmp_key = GenKey(
-                (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
-                gen->operator()(key_chooser()));
+            tmp_key = GenKey( shardid * load_avr + gen->operator()(key_chooser()));
             co_await cli->search(&key, &ret_value);
         }
         else if (op_frac < update_frac)
         {
             // update
-            tmp_key = GenKey(
-                (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
-                gen->operator()(key_chooser()));
+            tmp_key = GenKey( shardid * load_avr + gen->operator()(key_chooser()));
             co_await cli->update(&key, &update_value);
         }
         else
         {
             // delete
-            tmp_key = GenKey(
-                (config.machine_id * config.num_cli * config.num_coro + cli_id * config.num_coro + coro_id) * load_avr +
-                gen->operator()(key_chooser()));
+            tmp_key = GenKey( shardid * load_avr + gen->operator()(key_chooser()));
             co_await cli->remove(&key);
         }
     }

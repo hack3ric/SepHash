@@ -1,5 +1,6 @@
 {
   "files.associations": {
+    "stdio.h": "c",
     "cctype": "cpp",
     "clocale": "cpp",
     "cmath": "cpp",
@@ -79,6 +80,9 @@
     "__tree": "cpp",
     "__tuple": "cpp",
     "__verbose_abort": "cpp",
-    "ios": "cpp"
+    "ios": "cpp",
+    "bitset": "cpp",
+    "__functional_03": "cpp",
+    "__functional_base": "cpp"
   }
 }
