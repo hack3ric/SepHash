@@ -4,3 +4,4 @@
 !*space*.txt
 *.thropt
 *.latency
+/test_data

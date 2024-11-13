@@ -19,7 +19,7 @@ else
 
     for num_cli in `seq $2 $2`;do
         for num_coro in `seq $3 $3`;do
-            for load_num in 100000000 ;do
+            for load_num in 1000 ;do
                 echo "num_cli" $num_cli "num_coro" $num_coro "load_num" $load_num
                 # ./ser_cli_var_kv \
                 ./ser_cli \
@@ -28,7 +28,7 @@ else
                 --max_coro 256 --cq_size 64 \
                 --machine_id $1  \
                 --load_num $load_num \
-                --num_op 100000000 \
+                --num_op 1000 \
                 --pattern_type 1 \
                 --insert_frac 0.5 \
                 --read_frac   0.5 \

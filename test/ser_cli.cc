@@ -21,9 +21,9 @@
 // #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
-using ClientType = SEPHASH::ClientMultiShard;
-using ServerType = SEPHASH::Server;
-using Slice = SEPHASH::Slice;
+using ClientType = RACE::ClientMultiShard;
+using ServerType = RACE::Server;
+using Slice = RACE::Slice;
 
 std::atomic<long long> op_counter ;
 bool start_flag ;
@@ -105,12 +105,14 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
         if (op_frac < config.insert_frac)
         {
             tmp_key = GenKey( load_num + shardid * load_avr + gen->operator()(key_chooser()) );
+            if( shardid == 1 ) printf( "insert tmp_key = %lu\n" , tmp_key) ; fflush( stdout ) ;
             co_await cli->insert(&key, &value);
         }
         else if (op_frac < read_frac)
         {
             ret_value.len = 0;
             tmp_key = GenKey( shardid * load_avr + gen->operator()(key_chooser()));
+            if( shardid == 1 ) printf( "search tmp_key = %lu\n" , tmp_key) ; fflush( stdout ) ;
             co_await cli->search(&key, &ret_value);
         }
         else if (op_frac < update_frac)
