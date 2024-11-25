@@ -40,8 +40,9 @@ inline uint64_t GenKey(uint64_t key)
 template <class Client>
     requires KVTrait<Client, Slice *, Slice *>
 task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
-{
+{   
     co_await cli->start(config.num_machine * config.num_cli * config.num_coro);
+    // printf( "wait for %lu ??\n" , config.num_machine * config.num_cli * config.num_coro ) ;
     uint64_t tmp_key;
     Slice key, value;
     std::string tmp_value = std::string(8, '1');
@@ -54,9 +55,10 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
         long long tmp_start = op_counter.fetch_add( 100 ) ;
         if( tmp_start >= config.load_num / config.num_machine ) break ;
         for( int i = 0 ; i < 100 ; i ++ ){
-            tmp_key = GenKey( tmp_start + i ) ;
+            tmp_key = GenKey( tmp_start + i + ( config.load_num / config.num_machine * config.machine_id ) ) ;
             co_await cli->insert( &key , &value ) ;
         }
+        // if( tmp_start % 100000 == 0 ) printf( "load %lld\n" , tmp_start ) ;
     }
     co_await cli->stop();
     co_return;
@@ -99,20 +101,21 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
             long long tmp = op_counter.fetch_add( 100 ) ;
             if( tmp >= config.num_op / config.num_machine ) {
                 break ;
-            } 
+            }
+            // if( ( i - 1 ) % 1000 == 0 )printf( "tmp = %lld\n" , tmp ) ;
         }
         op_frac = op_chooser();
         if (op_frac < config.insert_frac)
         {
             tmp_key = GenKey( load_num + shardid * load_avr + gen->operator()(key_chooser()) );
-            if( shardid == 1 ) printf( "insert tmp_key = %lu\n" , tmp_key) ; fflush( stdout ) ;
+            // if( shardid == 1 ) printf( "insert tmp_key = %lu\n" , tmp_key) ; fflush( stdout ) ;
             co_await cli->insert(&key, &value);
         }
         else if (op_frac < read_frac)
         {
             ret_value.len = 0;
             tmp_key = GenKey( shardid * load_avr + gen->operator()(key_chooser()));
-            if( shardid == 1 ) printf( "search tmp_key = %lu\n" , tmp_key) ; fflush( stdout ) ;
+            // if( shardid == 1 ) printf( "search tmp_key = %lu\n" , tmp_key) ; fflush( stdout ) ;
             co_await cli->search(&key, &ret_value);
         }
         else if (op_frac < update_frac)
