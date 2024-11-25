@@ -56,6 +56,7 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
         if( tmp_start >= config.load_num / config.num_machine ) break ;
         for( int i = 0 ; i < 100 ; i ++ ){
             tmp_key = GenKey( tmp_start + i + ( config.load_num / config.num_machine * config.machine_id ) ) ;
+            printf( "Insert %llu(%lu)\n" , tmp_start + i + ( config.load_num / config.num_machine * config.machine_id ) , tmp_key ) ; fflush(stdout) ;
             co_await cli->insert( &key , &value ) ;
         }
         // if( tmp_start % 100000 == 0 ) printf( "load %lld\n" , tmp_start ) ;
