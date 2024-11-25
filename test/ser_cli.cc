@@ -21,9 +21,9 @@
 // #define ORDERED_INSERT
 Config config;
 uint64_t load_num;
-using ClientType = RACE::ClientMultiShard;
-using ServerType = RACE::Server;
-using Slice = RACE::Slice;
+using ClientType = SEPHASH::ClientMultiShard;
+using ServerType = SEPHASH::Server;
+using Slice = SEPHASH::Slice;
 
 std::atomic<long long> op_counter ;
 bool start_flag ;

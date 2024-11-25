@@ -369,7 +369,7 @@ Retry:
         for (uint64_t i = 0; i < stride; i++)
         {
             cur_seg_loc = (i << new_local_depth) | first_seg_loc;
-            log_err("[%lu:%lu:%lu] segloc:%lx edit segoffset:%lu to %lu",cli_id,coro_id,this->key_num,cur_seg_loc,seg_offset,0lu);
+            // log_err("[%lu:%lu:%lu] segloc:%lx edit segoffset:%lu to %lu",cli_id,coro_id,this->key_num,cur_seg_loc,seg_offset,0lu);
             dir->segs[segloc].local_depth = seg_meta->local_depth;
             dir->segs[cur_seg_loc].main_seg_ptr = seg_meta->main_seg_ptr;
             dir->segs[cur_seg_loc].main_seg_len = seg_meta->main_seg_len;
@@ -406,7 +406,7 @@ Retry:
     }
     else if (slot_id == slots_len - 1)
     {
-        log_err("[%lu:%lu:%lu] segloc:%lx edit segoffset:%lu to %lu",cli_id,coro_id,this->key_num,segloc,seg_offset,(seg_offset+slots_len)%SLOT_PER_SEG);
+        // log_err("[%lu:%lu:%lu] segloc:%lx edit segoffset:%lu to %lu",cli_id,coro_id,this->key_num,segloc,seg_offset,(seg_offset+slots_len)%SLOT_PER_SEG);
         this->offset[segloc].offset += slots_len;
         this->offset[segloc].offset = this->offset[segloc].offset%SLOT_PER_SEG;
     }
@@ -425,12 +425,12 @@ Retry:
     uint64_t tmp_cas = (uint64_t)( seg_slots[slot_id] ) ;
     if (!co_await conn->cas(slot_ptr, seg_rmr.rkey, tmp_cas , *tmp))
     {
-        printf( "Insert: find slot %lu from[0,%lu), but CAS failed\n"
-                "    slot content: seg_slots[%lu]=0x%lx,  tmp_cas=0x%lx\n"
-                "    dep = %u,  fp = %u,  len = %u,  sign = %u(std_sign=%lu),  offset = %lu\n" , 
-            slot_id , slots_len , slot_id , (uint64_t)seg_slots[slot_id] , tmp_cas , seg_slots[slot_id].dep , 
-            seg_slots[slot_id].fp , seg_slots[slot_id].len , seg_slots[slot_id].sign , sign , seg_slots[slot_id].offset ) ; fflush(stdout) ;
-        getchar() ;
+        // printf( "Insert: find slot %lu from[0,%lu), but CAS failed\n"
+        //         "    slot content: seg_slots[%lu]=0x%lx,  tmp_cas=0x%lx\n"
+        //         "    dep = %u,  fp = %u,  len = %u,  sign = %u(std_sign=%lu),  offset = %lu\n" , 
+        //     slot_id , slots_len , slot_id , (uint64_t)seg_slots[slot_id] , tmp_cas , seg_slots[slot_id].dep , 
+        //     seg_slots[slot_id].fp , seg_slots[slot_id].len , seg_slots[slot_id].sign , sign , seg_slots[slot_id].offset ) ; fflush(stdout) ;
+        // getchar() ;
         retry6 ++ ;
         goto Retry;
     }
@@ -753,7 +753,7 @@ task<> Client::Split(uint64_t seg_loc, uintptr_t seg_ptr, CurSegMeta *old_seg_me
             // 暂时还是co_await吧
             co_await conn->write(dentry_ptr, seg_rmr.rkey,&dir->segs[cur_seg_loc+offset], sizeof(DirEntry) , lmr->lkey);
             // conn->pure_write(dentry_ptr, seg_rmr.rkey,&dir->segs[cur_seg_loc+offset], sizeof(DirEntry), lmr->lkey);
-            log_err("[%lu:%lu:%lu]Merge At segloc:%lu depth:%lu with old_main_ptr:%lx new_main_ptr:%lx",cli_id,coro_id,this->key_num,cur_seg_loc+offset,local_depth,main_seg_ptr,new_main_ptr);
+            // log_err("[%lu:%lu:%lu]Merge At segloc:%lu depth:%lu with old_main_ptr:%lx new_main_ptr:%lx",cli_id,coro_id,this->key_num,cur_seg_loc+offset,local_depth,main_seg_ptr,new_main_ptr);
         }
     }
     
