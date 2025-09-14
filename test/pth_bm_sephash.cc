@@ -1,13 +1,14 @@
 
 
 #include <cstdint>
+#include <cstdlib>
 #include "aiordma.h"
 #include "sephash.h"
 
 extern "C" {
 void *pth_bm_target_create() {
     Config config;
-    const char *argv[] = {"--server_ip", "10.30.2.6", "--num_machine", "1", "--num_cli",    "1",
+    const char *argv[] = {"--server_ip", getenv("SEPHASH_SERVER_IP"), "--num_machine", "1", "--num_cli",    "1",
                           "--num_coro",  "1",         "--gid_idx",     "1", "--machine_id", "0"};
     config.ParseArg(sizeof(argv) / sizeof(*argv), argv);
 
@@ -41,7 +42,7 @@ void pth_bm_target_read(void *target, int key) {
     cli->cli->run(cli->search(&key_, &value_));
 }
 
-void pth_bm_target_insert(void *target, int key) {
+void pth_bm_target_insert(void *target, int key) {b
     auto cli = static_cast<SEPHASH::Client*>(target);
     uint64_t value = 0xdeadbeef;
     SEPHASH::Slice key_, value_;
