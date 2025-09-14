@@ -42,7 +42,7 @@ void pth_bm_target_read(void *target, int key) {
     cli->cli->run(cli->search(&key_, &value_));
 }
 
-void pth_bm_target_insert(void *target, int key) {b
+void pth_bm_target_insert(void *target, int key) {
     auto cli = static_cast<SEPHASH::Client*>(target);
     uint64_t value = 0xdeadbeef;
     SEPHASH::Slice key_, value_;
