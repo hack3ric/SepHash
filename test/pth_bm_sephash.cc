@@ -8,8 +8,19 @@
 extern "C" {
 void *pth_bm_target_create() {
     Config config;
-    const char *argv[] = {"--server_ip", getenv("SEPHASH_SERVER_IP"), "--num_machine", "1", "--num_cli",    "1",
-                          "--num_coro",  "1",         "--gid_idx",     "1", "--machine_id", "0"};
+    const char *argv[] = {"ser_cli",
+                          "--server_ip",
+                          getenv("SEPHASH_SERVER_IP"),
+                          "--num_machine",
+                          "1",
+                          "--num_cli",
+                          "1",
+                          "--num_coro",
+                          "1",
+                          "--gid_idx",
+                          "1",
+                          "--machine_id",
+                          "0"};
     config.ParseArg(sizeof(argv) / sizeof(*argv), argv);
 
     uint64_t cbuf_size = (1ul << 20) * 250;
@@ -36,40 +47,40 @@ void *pth_bm_target_create() {
 void pth_bm_target_destroy(void *target) {}
 
 void pth_bm_target_read(void *target, int key) {
-    auto cli = static_cast<SEPHASH::Client*>(target);
+    auto cli = static_cast<SEPHASH::Client *>(target);
     SEPHASH::Slice key_, value_;
     key_.len = sizeof(key);
-    key_.data = (char*)&key;
+    key_.data = (char *)&key;
     cli->cli->run(cli->search(&key_, &value_));
 }
 
 void pth_bm_target_insert(void *target, int key) {
-    auto cli = static_cast<SEPHASH::Client*>(target);
+    auto cli = static_cast<SEPHASH::Client *>(target);
     uint64_t value = 0xdeadbeef;
     SEPHASH::Slice key_, value_;
     key_.len = sizeof(key);
-    key_.data = (char*)&key;
+    key_.data = (char *)&key;
     value_.len = sizeof(value);
-    value_.data = (char*)&value;
+    value_.data = (char *)&value;
     cli->cli->run(cli->insert(&key_, &value_));
 }
 
 void pth_bm_target_update(void *target, int key) {
-    auto cli = static_cast<SEPHASH::Client*>(target);
+    auto cli = static_cast<SEPHASH::Client *>(target);
     uint64_t value = 0xdeadcafe;
     SEPHASH::Slice key_, value_;
     key_.len = sizeof(key);
-    key_.data = (char*)&key;
+    key_.data = (char *)&key;
     value_.len = sizeof(value);
-    value_.data = (char*)&value;
+    value_.data = (char *)&value;
     cli->cli->run(cli->update(&key_, &value_));
 }
 
 void pth_bm_target_delete(void *target, int key) {
-    auto cli = static_cast<SEPHASH::Client*>(target);
+    auto cli = static_cast<SEPHASH::Client *>(target);
     SEPHASH::Slice key_;
     key_.len = sizeof(key);
-    key_.data = (char*)&key;
+    key_.data = (char *)&key;
     cli->cli->run(cli->remove(&key_));
 }
 }
