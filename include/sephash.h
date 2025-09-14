@@ -184,6 +184,8 @@ struct SlotOffset
 class Client : public BasicDB
 {
   public:
+    rdma_client *cli;
+
     Client(Config &config, ibv_mr *_lmr, rdma_client *_cli, rdma_conn *_conn, rdma_conn *_wowait_conn,
            uint64_t _machine_id, uint64_t _cli_id, uint64_t _coro_id);
 
@@ -212,7 +214,7 @@ class Client : public BasicDB
     task<> print_main_seg(uint64_t seg_loc,uintptr_t main_seg_ptr, uint64_t main_seg_len);
 
     // rdma structs
-    rdma_client *cli;
+    // rdma_client *cli;
     rdma_conn *conn;
     rdma_conn *wo_wait_conn;
     rdma_rmr seg_rmr;
