@@ -5,3 +5,5 @@
 *.thropt
 *.latency
 /test_data
+.cache
+compile_commands.json
