@@ -26,14 +26,14 @@ void *pth_bm_target_create() {
     uint64_t cbuf_size = (1ul << 20) * 250;
     char *mem_buf = (char *)malloc(cbuf_size * (config.num_cli * config.num_coro + 1));
 
-    rdma_dev dev("mlx5_0", 1, config.gid_idx);
-    auto rdma_cli = new rdma_client(dev);
+    auto dev = new rdma_dev("mlx5_0", 1, config.gid_idx);
+    auto rdma_cli = new rdma_client(*dev);
     std::cout << "sephash: memory server ip = " << config.server_ip << std::endl;
     auto rdma_conn = rdma_cli->connect(config.server_ip);
     assert(rdma_conn != nullptr);
     auto rdma_wowait_conn = rdma_cli->connect(config.server_ip);
     assert(rdma_wowait_conn != nullptr);
-    ibv_mr *lmr = dev.create_mr(cbuf_size, mem_buf);
+    ibv_mr *lmr = dev->create_mr(cbuf_size, mem_buf);
 
     auto cli = new SEPHASH::Client(config, lmr, rdma_cli, rdma_conn, rdma_wowait_conn,
                                    config.machine_id, 0, 0);
