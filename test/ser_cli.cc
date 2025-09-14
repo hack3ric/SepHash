@@ -156,7 +156,7 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
     co_return;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
     config.ParseArg(argc, argv);
     load_num = config.load_num;
