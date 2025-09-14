@@ -35,3 +35,8 @@ target_link_libraries(ser_cli PRIVATE ${libs})
 
 add_executable(test_rdma test/test_rdma.cpp ${src})
 target_link_libraries(test_rdma PRIVATE ${libs})
+
+add_executable(memory_pool test/memory_pool.cc ${src})
+target_link_libraries(memory_pool PRIVATE ${libs})
+
+add_library(pth_bm_sephash STATIC test/pth_bm_sephash.cc ${src})
