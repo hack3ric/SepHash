@@ -32,3 +32,8 @@ target_link_libraries(ser_cli PRIVATE ${libs})
 
 add_executable(ser_cli_var_kv test/ser_cli_var_kv.cc ${src})
 target_link_libraries(ser_cli_var_kv PRIVATE ${libs})
+
+add_executable(memory_pool test/memory_pool.cc ${src})
+target_link_libraries(memory_pool PRIVATE ${libs})
+
+add_library(pth_bm_sephash STATIC test/pth_bm_sephash.cc ${src})
