@@ -39,7 +39,7 @@ struct Config
         return tokens;
     }
 
-    void ParseArg(int argc, char *argv[])
+    void ParseArg(int argc, const char *argv[])
     {
         cmdline::parser cmd_parser;
         cmd_parser.add("server", 'a', "Is a server or client");

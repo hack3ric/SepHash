@@ -1,7 +1,7 @@
 #include "config.h"
 #include "sephash.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
   Config config;
   config.ParseArg(argc, argv);
   SEPHASH::Server ser(config);
