@@ -49,8 +49,11 @@ void pth_bm_target_destroy(void *target) {}
 void pth_bm_target_read(void *target, int key) {
     auto cli = static_cast<SEPHASH::Client *>(target);
     SEPHASH::Slice key_, value_;
+    char buf[1024];
     key_.len = sizeof(key);
     key_.data = (char *)&key;
+    value_.len = 0;
+    value_.data = buf;
     cli->cli->run(cli->search(&key_, &value_));
 }
 
