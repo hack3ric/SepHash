@@ -14,6 +14,7 @@
 #include "split_search_base.h"
 #include "split_search_fptable.h"
 #include "split_search_fptable_wocache.h"
+#include <cstdint>
 #include <set>
 #include <stdint.h>
 #define ORDERED_INSERT
@@ -39,9 +40,12 @@ task<> load(Client *cli, uint64_t cli_id, uint64_t coro_id)
     co_await cli->start(config.num_machine * config.num_cli * config.num_coro);
     uint64_t tmp_key;
     Slice key, value;
-    std::string tmp_value = std::string(32, '1');
-    value.len = tmp_value.length();
-    value.data = (char *)tmp_value.data();
+    // std::string tmp_value = std::string(32, '1');
+    // value.len = tmp_value.length();
+    // value.data = (char *)tmp_value.data();
+    uint64_t tmp_value = 0xdeadbeef;
+    value.len = sizeof(uint64_t);
+    value.data = (char*)&tmp_value;
     key.len = sizeof(uint64_t);
     key.data = (char *)&tmp_key;
     uint64_t num_op = load_num / (config.num_machine * config.num_cli * config.num_coro);
@@ -66,13 +70,20 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
 
     ret_value.data = buffer;
 
-    std::string tmp_value = std::string(32, '1');
-    value.len = tmp_value.length();
-    value.data = (char *)tmp_value.data();
+    // std::string tmp_value = std::string(32, '1');
+    // value.len = tmp_value.length();
+    // value.data = (char *)tmp_value.data();
+    uint64_t tmp_value = 0xdeadbeef;
+    value.len = sizeof(uint64_t);
+    value.data = (char*)&tmp_value;
 
-    std::string tmp_value_2 = std::string(32, '2');
-    update_value.len = tmp_value_2.length();
-    update_value.data = (char *)tmp_value_2.data();
+    // std::string tmp_value_2 = std::string(32, '2');
+    // update_value.len = tmp_value_2.length();
+    // update_value.data = (char *)tmp_value_2.data();
+    uint64_t tmp_value_2 = 0xaaaaaaaa;
+    update_value.len = sizeof(uint64_t);
+    update_value.data = (char*)&tmp_value;
+
 
     key.len = sizeof(uint64_t);
     key.data = (char *)&tmp_key;
