@@ -195,6 +195,33 @@ int main(int argc, const char *argv[])
                            typeid(ClientType) == typeid(ClevelSingleFilter::Client);
         ;
 
+        const char *filename = getenv("PTH_BM_FILENAME");
+        const char *extra_cols = getenv("PTH_BM_EXTRA_COLS");
+        const char *extra_col_values = getenv("PTH_BM_EXTRA_COL_VALUES");
+        FILE *file = NULL;
+        if (filename) {
+            printf("result will be saved to %s\n", filename);
+            if (access(filename, F_OK) == -1) {
+                file = fopen(filename, "a");
+                if (file) {
+                    if (extra_cols && extra_col_values) fprintf(file, "%s,", extra_cols);
+                    fprintf(file,
+                            "uniform,thread_num,key_num,op_num,warmup_op_num,bulk_load_num,read_ratio,"
+                            "insert_ratio,update_ratio,scan_ratio,duration\n");
+                    fflush(file);
+                } else {
+                    perror("Error creating file");
+                    exit(1);
+                }
+            } else {
+                file = fopen(filename, "a");
+            }
+        } else {
+            printf("no filename given, report not saved\n");
+        }
+        if (extra_cols && extra_col_values)
+            printf("extra columns: (%s) = (%s)", extra_cols, extra_col_values);
+
         printf("Load start\n");
         start_flag = false ;
         op_counter.store( 0 ) ;
@@ -261,17 +288,32 @@ int main(int argc, const char *argv[])
             ths[i] = std::thread(th, rdma_clis[i], i);
         }
         start = std::chrono::steady_clock::now();
+        auto t1 = std::chrono::high_resolution_clock::now();
         start_flag = true ;
         for (uint64_t i = 0; i < config.num_cli; i++)
         {
             ths[i].join();
         }
+        auto t2 = std::chrono::high_resolution_clock::now();
         end = std::chrono::steady_clock::now();
         op_cnt = 1.0 * config.num_op;
         duration = std::chrono::duration<double, std::milli>(end - start).count();
         printf("Run duration:%.2lfms\n", duration);
         printf("Run IOPS:%.3lfMops\n", op_cnt / duration / 1000.0);
         fflush(stdout);
+
+        auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+        std::cout << "duration: " << duration_ns << std::endl;
+
+        if (file) {
+            if (extra_cols && extra_col_values) fprintf(file, "%s,", extra_col_values);
+            // fprintf(file,
+            // "uniform,thread_num,key_num,op_num,warmup_op_num,bulk_load_num,read_ratio,insert_ratio,update_ratio,scan_ratio,duration\n");
+            fprintf(file, "%d,%d,%ld,%lu,%lu,%ld,%lf,%lf,%lf,%lf,%ld\n", config.pattern_type == 1, (int)config.num_coro/*?*/,
+                    2*config.load_num, config.num_op, 0ul, config.load_num, config.read_frac,
+                    config.insert_frac, config.update_frac, 0., duration_ns);
+            fclose(file);
+        }
 
         exit_flag.store(false);
 
