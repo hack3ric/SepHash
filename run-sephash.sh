@@ -29,6 +29,7 @@ for _uniform in {0..1}; do
             PTH_BM_FILENAME="sephash.csv" \
                 PTH_BM_EXTRA_COLS="cache_ratio" \
                 PTH_BM_EXTRA_COL_VALUES="$_cache_ratio" \
+                SEPHASH_CBUF_SIZE=$_cache_size \
                 build/ser_cli \
                     --server_ip 127.0.0.1 --num_machine 1 --num_cli 1 --num_coro 1 \
                     --gid_idx 1 \

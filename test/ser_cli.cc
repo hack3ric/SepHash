@@ -147,6 +147,15 @@ task<> run(Generator *gen, Client *cli, uint64_t cli_id, uint64_t coro_id)
     co_return;
 }
 
+long get_long_from_env(const char *env_name, long default_value) {
+    char *env = getenv(env_name);
+    if (env) {
+        return strtol(env, NULL, 10);
+    } else {
+        return default_value;
+    }
+}
+
 int main(int argc, const char *argv[])
 {
     config.ParseArg(argc, argv);
@@ -159,7 +168,7 @@ int main(int argc, const char *argv[])
     }
     else
     {
-        uint64_t cbuf_size = (1ul << 20) * 20;
+        uint64_t cbuf_size = get_long_from_env("SEPHASH_CBUF_SIZE", (1ul << 20) * 20);
         char *mem_buf = (char *)malloc(cbuf_size * (config.server_num * config.num_cli * config.num_coro + 1));
         // rdma_dev dev("mlx5_1", 1, config.gid_idx);
         rdma_dev dev("mlx5_0", 1, config.gid_idx);
