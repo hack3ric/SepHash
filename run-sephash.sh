@@ -28,15 +28,15 @@ for _uniform in {0..1}; do
                 PTH_BM_EXTRA_COLS="cache_ratio" \
                 PTH_BM_EXTRA_COL_VALUES="$_cache_ratio" \
                 build/ser_cli \
-                    --server-ip 127.0.0.1 --num_machine 1 --num_cli 1 --num_coro 1 \
+                    --server_ip 127.0.0.1 --num_machine 1 --num_cli 1 --num_coro 1 \
                     --gid_idx 1 \
                     --max_coro 256 --cq_size 64 \
                     --machine_id 0 \
                     --load_num $scale \
                     --num_op $scale \
                     --pattern_type $_pattern_type \
-                    --read_frac "$(echo "scale=2; x=$read_ratio/100; if (x<1) print 0; x" | bc)" \
-                    --insert_frac "$(echo "scale=2; x=$insert_ratio/100; if (x<1) print 0; x" | bc)" \
+                    --read_frac "$(echo "scale=2; x=$_read_ratio/100; if (x<1) print 0; x" | bc)" \
+                    --insert_frac "$(echo "scale=2; x=$_insert_ratio/100; if (x<1) print 0; x" | bc)" \
                     --update_frac  0.0 \
                     --delete_frac  0.0 \
                     --read_size     64
