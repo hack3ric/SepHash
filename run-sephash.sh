@@ -23,6 +23,8 @@ for _uniform in {0..1}; do
             build/ser_cli --server --gid_idx 1 --max_coro 256 --cq_size 64 --mem_size 91268055040 &
             _memory_pid=$!
 
+            sleep 15
+
             # TODO: warmup
             PTH_BM_FILENAME="sephash.csv" \
                 PTH_BM_EXTRA_COLS="cache_ratio" \
@@ -41,7 +43,7 @@ for _uniform in {0..1}; do
                     --delete_frac  0.0 \
                     --read_size     64
             kill -9 $_memory_pid
-            sleep 3
+            sleep 10
         done
     done
 done
