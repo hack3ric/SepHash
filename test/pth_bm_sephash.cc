@@ -28,10 +28,10 @@ void *pth_bm_target_create() {
 
     auto dev = new rdma_dev("mlx5_0", 1, config.gid_idx);
     auto rdma_cli = new rdma_client(*dev);
-    std::cout << "sephash: memory server ip = " << config.server_ip << std::endl;
-    auto rdma_conn = rdma_cli->connect(config.server_ip);
+    std::cout << "sephash: memory server ip = " << config.server_ip[0] << std::endl;
+    auto rdma_conn = rdma_cli->connect(config.server_ip[0]);
     assert(rdma_conn != nullptr);
-    auto rdma_wowait_conn = rdma_cli->connect(config.server_ip);
+    auto rdma_wowait_conn = rdma_cli->connect(config.server_ip[0]);
     assert(rdma_wowait_conn != nullptr);
     ibv_mr *lmr = dev->create_mr(cbuf_size, mem_buf);
 
